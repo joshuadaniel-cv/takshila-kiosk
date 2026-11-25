@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Takshila Library">
+<meta name="theme-color" content="#f3efe7">
+<title>Takshila Library</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap">
+<style>
+  /* ---- Calm, classy, elder-first design tokens ---------------------------
+     Big type, generous space, soft warm palette, one calm accent.
+     Everything tappable is large; nothing small or clever. -------------- */
+  :root{
+    --paper:#f3efe7;        /* warm, low-glare background */
+    --card:#fbf9f4;         /* slightly lifted surface   */
+    --ink:#24322e;          /* warm near-black text      */
+    --ink-soft:#54645e;     /* secondary text            */
+    --line:#e4ddcf;         /* hairline borders          */
+    --sage:#3a6f62;         /* calm primary accent       */
+    --sage-deep:#2c564c;
+    --sage-tint:#e4ece7;    /* accent wash               */
+    --gold:#9c7a33;         /* rare warm highlight       */
+    --danger:#8a4a3c;
+    --shadow:0 18px 44px rgba(36,50,46,.10), 0 4px 12px rgba(36,50,46,.06);
+    --radius:26px;
+    --tap:84px;             /* minimum comfortable tap height */
+    --serif:"Lora", Georgia, "Times New Roman", serif;
+    --sans:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size:21px;
+  }
+  @media (min-width:900px){ :root{ font-size:23px; } }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-touch-callout:none;
+    user-select:none;
+    overscroll-behavior:none;
+  }
+  /* calm, slightly slower transitions everywhere */
+  .fade{ transition:opacity .45s ease; }
+  @media (prefers-reduced-motion:reduce){ *{ transition:none !important; animation:none !important; } }
+
+  .app{
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    padding-top:env(safe-area-inset-top,0);
+    padding-bottom:env(safe-area-inset-bottom,0);
+  }
+
+  /* ---- Top bar ---------------------------------------------------------- */
+  .bar{
+    flex:none;
+    display:flex; align-items:center; gap:18px;
+    padding:18px clamp(18px,3.5vw,40px);
+    padding-left:max(clamp(18px,3.5vw,40px), env(safe-area-inset-left,0));
+    padding-right:max(clamp(18px,3.5vw,40px), env(safe-area-inset-right,0));
+    border-bottom:1px solid var(--line);
+    background:var(--paper);
+    min-height:96px;
+  }
+  .brand{ display:flex; align-items:center; gap:16px; min-width:0; }
+  .crest{
+    width:58px; height:58px; flex:none; border-radius:16px;
+    background:linear-gradient(150deg,var(--sage),var(--sage-deep));
+    color:#fff; display:grid; place-items:center; box-shadow:var(--shadow);
+  }
+  .crest svg{ width:32px; height:32px; }
+  .brand-name{ font-family:var(--serif); font-weight:600; font-size:1.45rem; letter-spacing:.01em; line-height:1.05; }
+  .brand-sub{ color:var(--ink-soft); font-size:.82rem; margin-top:2px; }
+
+  .bar .spacer{ flex:1; }
+  .clock{ text-align:right; }
+  .clock .t{ font-family:var(--serif); font-variant-numeric:tabular-nums; font-size:1.5rem; line-height:1; }
+  .clock .d{ color:var(--ink-soft); font-size:.78rem; margin-top:4px; }
+
+  /* big, obvious Home button (shown only inside a section) */
+  .home-btn{
+    display:none; align-items:center; gap:12px;
+    min-height:64px; padding:0 24px 0 20px;
+    border:none; border-radius:999px; cursor:pointer;
+    background:var(--sage); color:#fff;
+    font-family:var(--sans); font-weight:600; font-size:1.1rem;
+    box-shadow:var(--shadow);
+  }
+  .home-btn svg{ width:26px; height:26px; }
+  .home-btn:active{ background:var(--sage-deep); }
+  .section-title{ display:none; font-family:var(--serif); font-weight:600; font-size:1.35rem; }
+  body[data-view="browse"] .home-btn,
+  body[data-view="borrow"] .home-btn,
+  body[data-view="music"]  .home-btn{ display:inline-flex; }
+  body[data-view="browse"] .section-title,
+  body[data-view="borrow"] .section-title,
+  body[data-view="music"]  .section-title{ display:block; }
+  body[data-view="browse"] .brand,
+  body[data-view="borrow"] .brand,
+  body[data-view="music"]  .brand{ display:none; }
+
+  /* ---- Stage (everything below the bar) --------------------------------- */
+  .stage{ position:relative; flex:1; min-height:0; }
+  .view{ position:absolute; inset:0; opacity:0; pointer-events:none; }
+  .view.active{ opacity:1; pointer-events:auto; }
+
+  /* ---- HOME ------------------------------------------------------------- */
+  #view-home{ display:flex; flex-direction:column; overflow:auto; }
+  .welcome{
+    text-align:center;
+    padding:clamp(26px,5vh,60px) 24px clamp(10px,2vh,20px);
+  }
+  .welcome h1{
+    font-family:var(--serif); font-weight:600;
+    font-size:clamp(2rem,5vw,3.1rem); line-height:1.1; margin:0;
+    text-wrap:balance;
+  }
+  .welcome p{ color:var(--ink-soft); font-size:clamp(1.05rem,2vw,1.3rem); margin:14px 0 0; }
+
+  .tiles{
+    flex:1;
+    display:grid; gap:clamp(18px,2.4vw,30px);
+    grid-template-columns:repeat(3,1fr);
+    align-content:center;
+    padding:clamp(18px,3vh,36px) clamp(20px,4vw,56px) clamp(28px,4vh,56px);
+    max-width:1300px; margin:0 auto; width:100%;
+  }
+  @media (max-width:820px){ .tiles{ grid-template-columns:1fr; max-width:620px; } }
+
+  .tile{
+    display:flex; flex-direction:column; gap:16px;
+    text-align:left; cursor:pointer;
+    background:var(--card); border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:clamp(26px,3vw,38px);
+    min-height:clamp(220px,34vh,320px);
+    box-shadow:var(--shadow);
+    transition:transform .25s ease;
+    font-family:var(--sans);
+  }
+  .tile:active{ transform:scale(.98); }
+  .tile .ic{
+    width:84px; height:84px; flex:none; border-radius:22px;
+    display:grid; place-items:center;
+    background:var(--sage-tint); color:var(--sage-deep);
+  }
+  .tile .ic svg{ width:46px; height:46px; }
+  .tile h2{ margin:0; font-family:var(--serif); font-weight:600; font-size:clamp(1.5rem,2.4vw,1.95rem); }
+  .tile p{ margin:0; color:var(--ink-soft); font-size:clamp(1rem,1.7vw,1.2rem); line-height:1.45; }
+  .tile .cue{ margin-top:auto; display:inline-flex; align-items:center; gap:10px; color:var(--sage-deep); font-weight:600; font-size:1.05rem; }
+  .tile .cue svg{ width:24px; height:24px; }
+
+  /* ---- Frame views (Browse / Borrow) ------------------------------------ */
+  .frame-wrap{ position:absolute; inset:0; background:var(--card); }
+  iframe.content{ width:100%; height:100%; border:0; display:block; background:#fff; }
+
+  .overlay{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:22px; text-align:center;
+    padding:40px; background:var(--card);
+  }
+  .overlay[hidden]{ display:none; }
+  .spinner{ width:64px; height:64px; border-radius:50%; border:6px solid var(--line); border-top-color:var(--sage); animation:spin 1s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .overlay p{ font-size:1.25rem; color:var(--ink-soft); margin:0; max-width:22ch; }
+  .overlay .big-home{
+    min-height:var(--tap); padding:0 34px; border:none; border-radius:999px;
+    background:var(--sage); color:#fff; font-family:var(--sans); font-weight:600;
+    font-size:1.2rem; cursor:pointer; box-shadow:var(--shadow);
+    display:inline-flex; align-items:center; gap:12px;
+  }
+  .overlay .big-home svg{ width:28px; height:28px; }
+  .overlay h3{ font-family:var(--serif); font-size:1.7rem; margin:0; }
+
+  /* ---- MUSIC ------------------------------------------------------------ */
+  #view-music{ display:flex; flex-direction:column; background:var(--card); }
+  .music-pad{ flex:1; min-height:0; display:flex; flex-direction:column; }
+  .music-choose{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:clamp(22px,4vh,44px); padding:40px;
+  }
+  .music-choose h2{ font-family:var(--serif); font-weight:600; font-size:clamp(1.8rem,4vw,2.6rem); margin:0; text-align:center; }
+  .music-choose .lead{ color:var(--ink-soft); font-size:1.2rem; margin:-10px 0 0; text-align:center; }
+  .choices{ display:flex; gap:clamp(18px,3vw,34px); flex-wrap:wrap; justify-content:center; width:100%; max-width:760px; }
+  .choice{
+    flex:1 1 300px; min-height:clamp(150px,22vh,210px);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    border:1px solid var(--line); border-radius:var(--radius); background:var(--paper);
+    cursor:pointer; box-shadow:var(--shadow); font-family:var(--sans);
+    transition:transform .25s ease;
+  }
+  .choice:active{ transform:scale(.98); }
+  .choice .logo{ width:72px; height:72px; border-radius:20px; display:grid; place-items:center; }
+  .choice .logo svg{ width:44px; height:44px; }
+  .choice.spotify .logo{ background:#e4f4ea; color:#1a7a43; }
+  .choice.youtube .logo{ background:#fbe7e7; color:#b02a2a; }
+  .choice .label{ display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .choice .nm{ font-size:1.5rem; font-weight:600; }
+  .choice .sub{ font-size:.98rem; color:var(--ink-soft); }
+  .help{ text-align:center; color:var(--ink-soft); font-size:1.05rem; padding:0 24px clamp(18px,3vh,34px); }
+
+  .player{ position:absolute; inset:0; display:none; flex-direction:column; background:var(--card); }
+  .player.active{ display:flex; }
+  .player .pbar{
+    flex:none; display:flex; align-items:center; gap:16px;
+    padding:16px clamp(18px,3.5vw,40px); border-bottom:1px solid var(--line);
+  }
+  .player .pbar .name{ font-family:var(--serif); font-size:1.3rem; font-weight:600; }
+  .back-music{
+    min-height:60px; padding:0 24px 0 18px; border:none; border-radius:999px; cursor:pointer;
+    background:var(--sage-tint); color:var(--sage-deep); font-family:var(--sans); font-weight:600; font-size:1.05rem;
+    display:inline-flex; align-items:center; gap:10px;
+  }
+  .back-music svg{ width:24px; height:24px; }
+  .player .frame-host{ flex:1; min-height:0; }
+  .player iframe{ width:100%; height:100%; border:0; }
+
+  .hint{ padding:14px 24px; text-align:center; color:var(--ink-soft); font-size:.95rem; border-top:1px solid var(--line); background:var(--paper); }
+
+  :focus-visible{ outline:4px solid var(--sage); outline-offset:3px; }
+</style>
+</head>
+<body data-view="home">
+<div class="app">
+
+  <!-- Top bar -->
+  <header class="bar">
+    <button class="home-btn" id="homeBtn" aria-label="Go back to the home screen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg>
+      Home
+    </button>
+    <div class="brand">
+      <div class="crest" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H11v16H5.5A2.5 2.5 0 0 0 3 21.5z"/><path d="M21 5.5A2.5 2.5 0 0 0 18.5 3H13v16h5.5A2.5 2.5 0 0 1 21 21.5z"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Takshila Library</div>
+        <div class="brand-sub">Welcome — please help yourself</div>
+      </div>
+    </div>
+    <div class="section-title" id="sectionTitle">Section</div>
+    <div class="spacer"></div>
+    <div class="clock"><div class="t" id="clockT">--:--</div><div class="d" id="clockD">&nbsp;</div></div>
+  </header>
+
+  <main class="stage">
+
+    <!-- HOME -->
+    <section class="view active" id="view-home">
+      <div class="welcome">
+        <h1>What would you like to do?</h1>
+        <p>Tap one of the three choices below.</p>
+      </div>
+      <div class="tiles">
+        <button class="tile" data-go="browse">
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+          <h2>Find a Book</h2>
+          <p>Look through all the books in our library.</p>
+          <span class="cue">Tap here <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></span>
+        </button>
+
+        <button class="tile" data-go="borrow">
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="m8.5 11.5 2.5 2.5 4.5-5"/></svg></span>
+          <h2>Borrow or Return</h2>
+          <p>Check a book out, or bring one back.</p>
+          <span class="cue">Tap here <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></span>
+        </button>
+
+        <button class="tile" data-go="music">
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></span>
+          <h2>Music</h2>
+          <p>Play some calm music while you read.</p>
+          <span class="cue">Tap here <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></span>
+        </button>
+      </div>
+      <p class="help">Need help? Please ask a librarian — we're happy to assist.</p>
+    </section>
+
+    <!-- BROWSE -->
+    <section class="view" id="view-browse">
+      <div class="frame-wrap">
+        <iframe class="content" id="frame-browse" title="Library catalogue" referrerpolicy="no-referrer"></iframe>
+        <div class="overlay" id="ov-browse">
+          <div class="spinner"></div>
+          <p>Opening the library catalogue…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- BORROW -->
+    <section class="view" id="view-borrow">
+      <div class="frame-wrap">
+        <iframe class="content" id="frame-borrow" title="Borrow or return books" referrerpolicy="no-referrer"></iframe>
+        <div class="overlay" id="ov-borrow">
+          <div class="spinner"></div>
+          <p>Opening the borrow &amp; return desk…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- MUSIC -->
+    <section class="view" id="view-music">
+      <div class="music-pad">
+        <div class="music-choose" id="musicChoose">
+          <div>
+            <h2>Choose your music</h2>
+            <p class="lead">Tap <strong>Calm Music</strong> to play songs while you read.</p>
+          </div>
+          <div class="choices">
+            <button class="choice youtube" data-player="youtube">
+              <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.3-.42-4.88a2.56 2.56 0 0 0-1.8-1.8C19.2 5 12 5 12 5s-7.2 0-8.78.42a2.56 2.56 0 0 0-1.8 1.8C1 8.7 1 12 1 12s0 3.3.42 4.88c.23.86.9 1.53 1.8 1.76C4.8 19 12 19 12 19s7.2 0 8.78-.42a2.56 2.56 0 0 0 1.8-1.8C23 15.3 23 12 23 12zM9.75 15.02v-6l5.5 3-5.5 3z"/></svg></span>
+              <span class="label"><span class="nm">Calm Music</span><span class="sub">Plays full songs</span></span>
+            </button>
+            <button class="choice spotify" data-player="spotify">
+              <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.6 14.4a.75.75 0 0 1-1 .25c-2.8-1.7-6.3-2.1-10.4-1.1a.75.75 0 1 1-.33-1.46c4.5-1 8.4-.6 11.5 1.3.35.2.46.66.23 1.01zm1.2-2.7a.94.94 0 0 1-1.28.3c-3.2-2-8.1-2.5-11.9-1.35a.94.94 0 1 1-.54-1.8c4.3-1.3 9.7-.73 13.4 1.57.44.27.58.85.32 1.28zm.1-2.8C14.3 8.6 8.2 8.4 4.7 9.46a1.12 1.12 0 1 1-.65-2.15C8.1 6.1 14.8 6.33 19 8.78a1.12 1.12 0 1 1-1.14 1.93z"/></svg></span>
+              <span class="label"><span class="nm">Spotify</span><span class="sub">Preview songs only</span></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="player" id="player">
+          <div class="pbar">
+            <button class="back-music" id="backMusic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></svg> Change</button>
+            <div class="name" id="playerName">Music</div>
+          </div>
+          <div class="frame-host" id="playerHost"></div>
+          <div class="hint">If music does not start, tap the big play button in the panel above.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  "use strict";
+
+  // ---- Destinations ------------------------------------------------------
+  var LIBIB_BROWSE = "https://www.libib.com/u/takshila";
+  var LIBIB_KIOSK  = "https://www.libib.com/kiosk/takshila";
+  // Placeholder calming playlists — swap for the library's own later.
+  var SPOTIFY_EMBED = "https://open.spotify.com/embed/playlist/37i9dQZF1DX4sWSpwq3LiO?utm_source=generator"; // Peaceful Piano
+  var YOUTUBE_EMBED = "https://www.youtube.com/embed/vmS8X64bkZM?list=PLt_47Imx98wrucH_zNmGr8pFpCqzZYTad&rel=0&modestbranding=1&playsinline=1"; // calm classical piano playlist (demo placeholder — swap for the library's own)
+
+  var body = document.body;
+  var sectionTitle = document.getElementById("sectionTitle");
+  var TITLES = { browse:"Find a Book", borrow:"Borrow or Return", music:"Music" };
+
+  var frames = {
+    browse:{ el:document.getElementById("frame-browse"), ov:document.getElementById("ov-browse"), url:LIBIB_BROWSE, loaded:false, timer:null },
+    borrow:{ el:document.getElementById("frame-borrow"), ov:document.getElementById("ov-borrow"), url:LIBIB_KIOSK,  loaded:false, timer:null }
+  };
+
+  function showView(name){
+    var views = document.querySelectorAll(".view");
+    for (var i=0;i<views.length;i++) views[i].classList.toggle("active", views[i].id === "view-"+name);
+    body.setAttribute("data-view", name);
+    if (TITLES[name]) sectionTitle.textContent = TITLES[name];
+    if (name === "browse" || name === "borrow") ensureFrame(name);
+    resetIdle();
+  }
+
+  function ensureFrame(name){
+    var f = frames[name];
+    if (f.loaded) return;
+    f.ov.hidden = false;
+    // error fallback if it never loads
+    f.timer = setTimeout(function(){ showFrameError(name); }, 18000);
+    f.el.onload = function(){
+      clearTimeout(f.timer);
+      f.loaded = true;
+      f.ov.hidden = true;
+    };
+    f.el.src = f.url;
+  }
+
+  function showFrameError(name){
+    var f = frames[name];
+    f.ov.hidden = false;
+    f.ov.innerHTML =
+      '<h3>Just a moment</h3>' +
+      '<p>This is taking longer than usual. Please tap Home and try again, or ask a librarian for help.</p>' +
+      '<button class="big-home" data-go="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg> Back to Home</button>';
+  }
+
+  // ---- Music -------------------------------------------------------------
+  var player = document.getElementById("player");
+  var playerHost = document.getElementById("playerHost");
+  var playerName = document.getElementById("playerName");
+
+  function openPlayer(kind){
+    var url = kind === "spotify" ? SPOTIFY_EMBED : YOUTUBE_EMBED;
+    playerName.textContent = kind === "spotify" ? "Spotify — preview songs" : "Calm Music";
+    playerHost.innerHTML = '<iframe allow="autoplay; encrypted-media; clipboard-write" allowfullscreen loading="eager"></iframe>';
+    playerHost.firstChild.src = url;
+    player.classList.add("active");
+    resetIdle();
+  }
+  function closePlayer(){
+    player.classList.remove("active");
+    playerHost.innerHTML = ""; // stop audio
+  }
+
+  // ---- Clock -------------------------------------------------------------
+  function tick(){
+    var now = new Date();
+    document.getElementById("clockT").textContent = now.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    document.getElementById("clockD").textContent = now.toLocaleDateString([], {weekday:"long", day:"numeric", month:"long"});
+  }
+  tick(); setInterval(tick, 15000);
+
+  // ---- Idle reset (return to a clean home for the next person) -----------
+  var IDLE_MS = 3*60*1000;
+  var idleTimer = null;
+  function resetIdle(){
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(goIdle, IDLE_MS);
+  }
+  function goIdle(){
+    closePlayer();
+    // force the borrow desk to reload fresh next time
+    if (frames.borrow.loaded){ frames.borrow.loaded = false; frames.borrow.el.src = "about:blank"; }
+    showView("home");
+  }
+  ["click","touchstart","keydown"].forEach(function(ev){ document.addEventListener(ev, resetIdle, {passive:true}); });
+
+  // ---- Wire up -----------------------------------------------------------
+  document.addEventListener("click", function(e){
+    var go = e.target.closest("[data-go]");
+    if (go){ showView(go.getAttribute("data-go")); return; }
+    var p = e.target.closest("[data-player]");
+    if (p){ openPlayer(p.getAttribute("data-player")); return; }
+  });
+  document.getElementById("homeBtn").addEventListener("click", function(){ showView("home"); });
+  document.getElementById("backMusic").addEventListener("click", closePlayer);
+
+  // block pinch-zoom / double-tap zoom for a steadier kiosk feel
+  document.addEventListener("gesturestart", function(e){ e.preventDefault(); });
+  var lastTouch = 0;
+  document.addEventListener("touchend", function(e){
+    var now = Date.now();
+    if (now - lastTouch < 350) e.preventDefault();
+    lastTouch = now;
+  }, {passive:false});
+
+  resetIdle();
+
+  // ---- PWA service worker ------------------------------------------------
+  if ("serviceWorker" in navigator){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){ /* fine offline-less */ });
+    });
+  }
+</script>
+</body>
+</html>
